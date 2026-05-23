@@ -1,458 +1,1285 @@
-<!-- ▼ 追加改善パッチ Phase1 -->
-<!-- </body> の直前に追加 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#2D3561">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="わりかん">
+<meta name="mobile-web-app-capable" content="yes">
+<title>わりかん – 割り勘アプリ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 
-<!-- html2canvas（今後の画像保存用） -->
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<!-- PWA Manifest (inline) -->
+<script>
+  const manifestData = {
+    name: 'わりかん',
+    short_name: 'わりかん',
+    description: '立替・個別精算 かんたん割り勘アプリ',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#FFF8F0',
+    theme_color: '#2D3561',
+    icons: [{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%232D3561"/><text y=".9em" font-size="72" x="12">🧾</text></svg>',sizes:'any',type:'image/svg+xml'}]
+  };
+  const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+  const mlink = document.createElement('link');
+  mlink.rel = 'manifest';
+  mlink.href = URL.createObjectURL(blob);
+  document.head.appendChild(mlink);
+</script>
 
-<!-- ===== 固定アクションバー ===== -->
-<div id="bottomBar" style="
-position:fixed;
-bottom:0;
-left:0;
-right:0;
-z-index:9999;
-background:rgba(255,255,255,0.95);
-backdrop-filter:blur(10px);
-border-top:1px solid #E5E7EB;
-padding:10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
-display:flex;
-gap:8px;
-box-shadow:0 -4px 20px rgba(0,0,0,0.08);
-">
+<style>
+/* ===== CSS Variables ===== */
+:root {
+  --coral: #FF6B6B;
+  --coral-light: #FF8E8E;
+  --mint: #4ECDC4;
+  --mint-light: #7EDDD6;
+  --sand: #FFF8F0;
+  --navy: #2D3561;
+  --navy-light: #3D4A7A;
+  --yellow: #FFE66D;
+  --gray-soft: #F5F5F7;
+  --text-main: #1A1A2E;
+  --text-sub: #6B7280;
+  --fab-h: 72px; /* bottom action bar height */
+}
 
-<button onclick="scrollToTopForm()" style="
-flex:1;
-height:48px;
-border:none;
-border-radius:14px;
-background:#FF6B6B;
-color:white;
-font-weight:800;
-font-size:14px;
-">
-＋追加
-</button>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--sand);
+  color: var(--text-main);
+  min-height: 100vh;
+  padding-bottom: calc(var(--fab-h) + 1rem);
+  overscroll-behavior: none;
+}
+h1,h2,.display-font { font-family: 'Nunito','Noto Sans JP',sans-serif; }
+input,select,button,textarea { font-family: inherit; }
 
-<button onclick="scrollToSettlement()" style="
-flex:1;
-height:48px;
-border:none;
-border-radius:14px;
-background:#4ECDC4;
-color:white;
-font-weight:800;
-font-size:14px;
-">
-精算結果
-</button>
+/* ===== Header ===== */
+.app-header {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+  padding: 1.1rem 1rem 1.4rem;
+  position: relative;
+  overflow: hidden;
+}
+.app-header::before {
+  content:''; position:absolute; top:-40px; right:-40px;
+  width:140px; height:140px;
+  background:rgba(255,255,255,0.05); border-radius:50%;
+}
+.app-header::after {
+  content:''; position:absolute; bottom:-30px; left:30px;
+  width:90px; height:90px;
+  background:rgba(78,205,196,0.12); border-radius:50%;
+}
 
-<button onclick="copySettlement()" style="
-flex:1;
-height:48px;
-border:none;
-border-radius:14px;
-background:#2D3561;
-color:white;
-font-weight:800;
-font-size:14px;
-">
-コピー
-</button>
+/* ===== Section Cards ===== */
+.section-card {
+  background:#fff; border-radius:20px;
+  padding:1.2rem; margin:0.7rem 0.9rem;
+  box-shadow:0 2px 16px rgba(45,53,97,0.07);
+}
+.section-title {
+  font-family:'Nunito',sans-serif; font-weight:800;
+  font-size:0.95rem; color:var(--navy);
+  letter-spacing:0.02em; margin-bottom:0.8rem;
+  display:flex; align-items:center; gap:0.4rem;
+}
+.section-title .icon {
+  width:26px; height:26px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:0.8rem; flex-shrink:0;
+}
 
-<button onclick="resetAllData()" style="
-width:48px;
-height:48px;
-border:none;
-border-radius:14px;
-background:#F3F4F6;
-font-size:18px;
-">
-🗑
-</button>
+/* ===== Member Badges ===== */
+.member-badge {
+  display:inline-flex; align-items:center; gap:0.3rem;
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-light) 100%);
+  color:#fff; border-radius:999px;
+  padding:0.3rem 0.6rem 0.3rem 0.75rem;
+  font-size:0.82rem; font-weight:600; margin:0.2rem;
+  animation:popIn 0.2s cubic-bezier(.34,1.56,.64,1);
+}
+.member-badge .del-btn {
+  width:20px; height:20px; background:rgba(255,255,255,0.25);
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:0.65rem; border:none; color:#fff;
+  padding:0; flex-shrink:0; transition:background 0.15s;
+  min-width:20px;
+}
+.member-badge .del-btn:active { background:rgba(255,107,107,0.8); }
 
+/* ===== Inputs ===== */
+.inp {
+  width:100%; border:2px solid #E5E7EB; border-radius:12px;
+  padding:0.65rem 0.85rem; font-size:0.95rem;
+  color:var(--text-main); transition:border-color 0.2s, box-shadow 0.2s;
+  outline:none; background:var(--gray-soft);
+  -webkit-appearance:none; appearance:none;
+}
+.inp:focus { border-color:var(--mint); box-shadow:0 0 0 3px rgba(78,205,196,0.18); background:#fff; }
+select.inp { cursor:pointer; }
+
+/* Amount Input with ¥ prefix */
+.amount-wrap { position:relative; }
+.amount-prefix {
+  position:absolute; left:0.85rem; top:50%; transform:translateY(-50%);
+  font-family:'Nunito',sans-serif; font-weight:800;
+  color:var(--text-sub); font-size:1rem; pointer-events:none; z-index:1;
+}
+.inp-amount {
+  width:100%; border:2px solid #E5E7EB; border-radius:12px;
+  padding:0.65rem 0.85rem 0.65rem 1.8rem;
+  font-size:1rem; font-family:'Nunito',sans-serif; font-weight:700;
+  color:var(--text-main); transition:border-color 0.2s, box-shadow 0.2s;
+  outline:none; background:var(--gray-soft);
+  -webkit-appearance:none; appearance:none;
+}
+.inp-amount:focus { border-color:var(--mint); box-shadow:0 0 0 3px rgba(78,205,196,0.18); background:#fff; }
+
+/* ===== Buttons ===== */
+.btn-primary {
+  background:linear-gradient(135deg,var(--coral) 0%,#FF4757 100%);
+  color:#fff; border:none; border-radius:12px;
+  padding:0.8rem 1.2rem;
+  font-family:'Nunito',sans-serif; font-weight:800; font-size:0.95rem;
+  cursor:pointer; transition:transform 0.12s, box-shadow 0.12s;
+  box-shadow:0 4px 14px rgba(255,107,107,0.35);
+  -webkit-appearance:none; touch-action:manipulation;
+}
+.btn-primary:active { transform:scale(0.96); box-shadow:0 2px 6px rgba(255,107,107,0.3); }
+.btn-sm {
+  background:var(--gray-soft); border:2px solid #E5E7EB; border-radius:10px;
+  padding:0.5rem 0.9rem;
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:0.85rem;
+  cursor:pointer; color:var(--navy); transition:all 0.15s;
+  touch-action:manipulation;
+}
+.btn-sm:active { border-color:var(--mint); background:rgba(78,205,196,0.1); }
+.btn-danger {
+  background:rgba(255,107,107,0.1); border:2px solid rgba(255,107,107,0.3);
+  border-radius:10px; padding:0.45rem 0.9rem;
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:0.82rem;
+  cursor:pointer; color:var(--coral); transition:all 0.15s;
+  touch-action:manipulation;
+}
+.btn-danger:active { background:rgba(255,107,107,0.2); }
+
+/* ===== Target Chips ===== */
+.target-check-wrap { display:flex; flex-wrap:wrap; gap:0.4rem; }
+.target-chip {
+  display:inline-flex; align-items:center; gap:0.3rem;
+  border:2px solid #E5E7EB; border-radius:999px;
+  padding:0.4rem 0.8rem; font-size:0.84rem; font-weight:600;
+  cursor:pointer; transition:all 0.12s; user-select:none;
+  color:var(--text-sub); background:var(--gray-soft);
+  touch-action:manipulation; min-height:36px;
+}
+.target-chip.checked { border-color:var(--mint); background:rgba(78,205,196,0.12); color:var(--navy); }
+
+/* ===== History ===== */
+.history-item {
+  display:flex; align-items:flex-start; gap:0.55rem;
+  padding:0.75rem; border-radius:14px;
+  background:var(--gray-soft); margin-bottom:0.5rem;
+  animation:slideIn 0.2s ease;
+}
+.history-item:last-child { margin-bottom:0; }
+.history-dot {
+  width:36px; height:36px; border-radius:10px;
+  background:linear-gradient(135deg,var(--mint) 0%,var(--mint-light) 100%);
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:0.9rem; flex-shrink:0;
+}
+.history-content { flex:1; min-width:0; }
+.history-name {
+  font-weight:700; font-size:0.9rem; color:var(--navy);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.history-sub { font-size:0.74rem; color:var(--text-sub); margin-top:0.12rem; line-height:1.4; }
+.history-amount {
+  font-family:'Nunito',sans-serif; font-weight:800;
+  font-size:0.95rem; color:var(--coral); white-space:nowrap; flex-shrink:0;
+}
+.history-actions { display:flex; gap:0.25rem; flex-shrink:0; }
+.icon-btn {
+  background:none; border:none; cursor:pointer;
+  color:#CBD5E1; font-size:1rem; padding:0.25rem;
+  transition:color 0.15s; min-width:28px; min-height:28px;
+  display:flex; align-items:center; justify-content:center;
+}
+.icon-btn:active { color:var(--coral); transform:scale(0.9); }
+.icon-btn.edit:active { color:var(--mint); }
+
+/* ===== Settlement Card ===== */
+.settlement-card {
+  background:linear-gradient(135deg,var(--navy) 0%,#1A1A2E 100%);
+  border-radius:20px; padding:1.25rem;
+  margin:0.7rem 0.9rem 0.9rem;
+  box-shadow:0 8px 30px rgba(45,53,97,0.25);
+}
+.settlement-title {
+  font-family:'Nunito',sans-serif; font-weight:900;
+  color:#fff; font-size:1rem;
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:1rem;
+}
+.settlement-row {
+  display:flex; align-items:center; gap:0.5rem;
+  background:rgba(255,255,255,0.07); border-radius:14px;
+  padding:0.75rem 1rem; margin-bottom:0.5rem;
+  animation:popIn 0.2s cubic-bezier(.34,1.56,.64,1);
+}
+.settlement-row:last-child { margin-bottom:0; }
+.s-from { font-weight:700; color:#fff; font-size:0.9rem; white-space:nowrap; }
+.s-arrow { color:var(--yellow); font-size:0.95rem; flex-shrink:0; }
+.s-to { font-weight:700; color:#fff; font-size:0.9rem; white-space:nowrap; }
+.s-amount {
+  font-family:'Nunito',sans-serif; font-weight:900;
+  font-size:1rem; color:var(--yellow); white-space:nowrap; margin-left:auto;
+}
+.settled-msg { text-align:center; color:rgba(255,255,255,0.5); font-size:0.9rem; padding:0.8rem 0 0.3rem; }
+
+.balance-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0.38rem 0; border-bottom:1px solid rgba(255,255,255,0.06); font-size:0.83rem;
+}
+.balance-row:last-child { border-bottom:none; }
+.balance-name { color:rgba(255,255,255,0.65); }
+.balance-val { font-family:'Nunito',sans-serif; font-weight:700; }
+.balance-pos { color:var(--mint-light); }
+.balance-neg { color:var(--coral-light); }
+.balance-zero { color:rgba(255,255,255,0.35); }
+
+/* ===== Tab Toggle ===== */
+.tab-toggle {
+  display:flex; background:rgba(255,255,255,0.08);
+  border-radius:12px; padding:3px; margin-bottom:0.85rem;
+}
+.tab-btn {
+  flex:1; padding:0.45rem; border-radius:10px;
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:0.82rem;
+  border:none; cursor:pointer; background:none; color:rgba(255,255,255,0.5);
+  transition:all 0.2s; touch-action:manipulation;
+}
+.tab-btn.active { background:rgba(255,255,255,0.15); color:#fff; }
+
+/* ===== Total Chip ===== */
+.total-chip {
+  display:inline-flex; align-items:center; gap:0.3rem;
+  background:rgba(78,205,196,0.15); color:var(--navy);
+  border-radius:999px; padding:0.2rem 0.7rem;
+  font-family:'Nunito',sans-serif; font-weight:800; font-size:0.8rem;
+}
+
+/* ===== Sort Toggle ===== */
+.sort-toggle {
+  display:flex; gap:0.3rem; margin-left:auto;
+}
+.sort-btn {
+  font-size:0.72rem; font-weight:700;
+  padding:0.2rem 0.55rem; border-radius:999px;
+  border:1.5px solid #E5E7EB; background:none;
+  cursor:pointer; color:var(--text-sub); transition:all 0.15s;
+  touch-action:manipulation;
+}
+.sort-btn.active { border-color:var(--mint); color:var(--navy); background:rgba(78,205,196,0.1); }
+
+/* ===== Quick Buttons ===== */
+.quick-btns { display:flex; gap:0.35rem; }
+.quick-btn {
+  font-size:0.72rem; font-weight:700;
+  padding:0.25rem 0.6rem; border-radius:999px;
+  border:1.5px solid #E5E7EB; background:none;
+  cursor:pointer; color:var(--text-sub); transition:all 0.15s;
+  touch-action:manipulation;
+}
+.quick-btn:active { border-color:var(--mint); color:var(--navy); }
+
+/* ===== Bottom FAB Bar ===== */
+.fab-bar {
+  position:fixed; bottom:0; left:0; right:0;
+  height:var(--fab-h);
+  background:#fff; border-top:1px solid #E5E7EB;
+  display:flex; align-items:center; justify-content:space-around;
+  padding:0 0.5rem env(safe-area-inset-bottom,0);
+  z-index:100;
+  box-shadow:0 -4px 20px rgba(45,53,97,0.08);
+}
+.fab-item {
+  display:flex; flex-direction:column; align-items:center; gap:0.18rem;
+  padding:0.4rem 0.6rem; border-radius:14px; cursor:pointer;
+  transition:transform 0.12s, background 0.12s;
+  border:none; background:none; flex:1; max-width:80px;
+  touch-action:manipulation; min-height:52px; justify-content:center;
+}
+.fab-item:active { transform:scale(0.91); background:var(--gray-soft); }
+.fab-item .fab-icon { font-size:1.3rem; line-height:1; }
+.fab-item .fab-label { font-size:0.62rem; font-weight:700; color:var(--text-sub); white-space:nowrap; }
+.fab-add { background:linear-gradient(135deg,var(--coral) 0%,#FF4757 100%) !important; border-radius:16px !important; }
+.fab-add .fab-icon { font-size:1.4rem; }
+.fab-add .fab-label { color:rgba(255,255,255,0.9) !important; }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.5);
+  z-index:200; display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity 0.2s;
+}
+.modal-overlay.open { opacity:1; pointer-events:auto; }
+.modal-sheet {
+  background:#fff; border-radius:24px 24px 0 0;
+  width:100%; max-height:90vh; overflow-y:auto;
+  padding:1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom,0));
+  transform:translateY(100%); transition:transform 0.25s cubic-bezier(.32,.72,0,1);
+  -webkit-overflow-scrolling:touch;
+}
+.modal-overlay.open .modal-sheet { transform:translateY(0); }
+.modal-handle {
+  width:40px; height:4px; background:#E5E7EB;
+  border-radius:999px; margin:0 auto 1.1rem;
+}
+.modal-title {
+  font-family:'Nunito',sans-serif; font-weight:900;
+  font-size:1.1rem; color:var(--navy); margin-bottom:1rem;
+}
+
+/* ===== Confirm Dialog ===== */
+.confirm-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.5);
+  z-index:300; display:flex; align-items:center; justify-content:center;
+  padding:1rem; opacity:0; pointer-events:none; transition:opacity 0.15s;
+}
+.confirm-overlay.open { opacity:1; pointer-events:auto; }
+.confirm-box {
+  background:#fff; border-radius:20px; padding:1.5rem;
+  max-width:320px; width:100%;
+  transform:scale(0.9); transition:transform 0.15s;
+}
+.confirm-overlay.open .confirm-box { transform:scale(1); }
+.confirm-title {
+  font-family:'Nunito',sans-serif; font-weight:900;
+  font-size:1.05rem; color:var(--navy); margin-bottom:0.5rem;
+}
+.confirm-msg { font-size:0.87rem; color:var(--text-sub); line-height:1.5; margin-bottom:1.2rem; }
+.confirm-btns { display:flex; gap:0.5rem; }
+.confirm-btns button { flex:1; padding:0.7rem; border-radius:12px; font-weight:700; font-size:0.9rem; cursor:pointer; border:none; touch-action:manipulation; }
+.confirm-cancel { background:var(--gray-soft); color:var(--text-sub); }
+.confirm-ok { background:linear-gradient(135deg,var(--coral),#FF4757); color:#fff; }
+
+/* ===== Toast ===== */
+.toast {
+  position:fixed; bottom:calc(var(--fab-h) + 0.75rem); left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--navy); color:#fff;
+  padding:0.6rem 1.2rem; border-radius:999px;
+  font-size:0.85rem; font-weight:600;
+  white-space:nowrap; z-index:400;
+  opacity:0; transition:all 0.2s; pointer-events:none;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ===== Error Msg ===== */
+.error-msg { font-size:0.78rem; color:var(--coral); font-weight:600; margin-top:0.3rem; display:none; }
+.error-msg.show { display:block; }
+
+/* ===== Misc ===== */
+.divider { height:1px; background:#F0F0F0; margin:0.7rem 0; }
+.empty-state { text-align:center; color:var(--text-sub); font-size:0.85rem; padding:1.3rem 0 0.3rem; }
+.empty-state .big { font-size:2rem; margin-bottom:0.35rem; }
+
+/* ===== Animations ===== */
+@keyframes popIn {
+  0% { transform:scale(0.85); opacity:0; }
+  100% { transform:scale(1); opacity:1; }
+}
+@keyframes slideIn {
+  0% { transform:translateY(8px); opacity:0; }
+  100% { transform:translateY(0); opacity:1; }
+}
+@keyframes shake {
+  0%,100% { transform:translateX(0); }
+  20% { transform:translateX(-6px); }
+  40% { transform:translateX(6px); }
+  60% { transform:translateX(-4px); }
+  80% { transform:translateX(4px); }
+}
+.shake { animation:shake 0.35s ease; }
+
+/* ===== Image Export Card ===== */
+#exportCard {
+  background:linear-gradient(135deg,#2D3561 0%,#1A1A2E 100%);
+  padding:1.5rem; width:360px; border-radius:20px;
+  font-family:'Nunito','Noto Sans JP',sans-serif;
+}
+#exportCard .ec-title { color:#fff; font-size:1.1rem; font-weight:900; margin-bottom:0.2rem; }
+#exportCard .ec-sub { color:rgba(255,255,255,0.5); font-size:0.75rem; margin-bottom:1rem; }
+#exportCard .ec-total { color:var(--yellow); font-size:0.85rem; font-weight:700; margin-bottom:0.6rem; }
+#exportCard .ec-row {
+  background:rgba(255,255,255,0.08); border-radius:12px;
+  padding:0.6rem 0.85rem; margin-bottom:0.4rem;
+  display:flex; align-items:center; gap:0.5rem; color:#fff; font-size:0.88rem; font-weight:700;
+}
+#exportCard .ec-amount { margin-left:auto; color:var(--yellow); font-weight:900; }
+#exportCard .ec-members { color:rgba(255,255,255,0.45); font-size:0.72rem; margin-top:0.8rem; }
+#exportCard .ec-footer { color:rgba(255,255,255,0.3); font-size:0.68rem; margin-top:0.6rem; text-align:right; }
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<div class="app-header">
+  <div style="position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;">
+    <div>
+      <div style="font-family:'Nunito',sans-serif;font-weight:900;font-size:1.55rem;color:#fff;line-height:1.1;">わりかん 🧾</div>
+      <div style="color:rgba(255,255,255,0.55);font-size:0.76rem;margin-top:0.2rem;">立替・個別精算 かんたん割り勘</div>
+    </div>
+    <button onclick="confirmResetAll()" style="background:rgba(255,255,255,0.1);border:none;border-radius:10px;padding:0.45rem 0.7rem;color:rgba(255,255,255,0.7);font-size:0.75rem;font-weight:700;cursor:pointer;touch-action:manipulation;">🗑 全削除</button>
+  </div>
 </div>
 
-<!-- ===== 編集モーダル ===== -->
-<div id="editModal" style="
-display:none;
-position:fixed;
-inset:0;
-background:rgba(0,0,0,0.45);
-z-index:10000;
-align-items:flex-end;
-justify-content:center;
-">
-
-<div style="
-background:white;
-width:100%;
-max-width:520px;
-border-radius:24px 24px 0 0;
-padding:20px;
-max-height:90vh;
-overflow:auto;
-">
-
-<div style="
-font-size:20px;
-font-weight:800;
-margin-bottom:16px;
-">
-履歴を編集
+<!-- ===== ① Member Section ===== -->
+<div class="section-card">
+  <div class="section-title">
+    <span class="icon" style="background:rgba(78,205,196,0.15);">👥</span>
+    メンバー管理
+  </div>
+  <div style="display:flex;gap:0.5rem;">
+    <input id="memberInput" class="inp" placeholder="名前を入力…" maxlength="10" style="flex:1;" autocomplete="off" autocorrect="off">
+    <button class="btn-sm" onclick="addMember()" style="white-space:nowrap;flex-shrink:0;">＋ 追加</button>
+  </div>
+  <div id="memberError" class="error-msg">同じ名前は登録できません</div>
+  <div id="memberBadges" style="margin-top:0.6rem;min-height:28px;display:flex;flex-wrap:wrap;"></div>
 </div>
 
-<input id="editName" class="inp" placeholder="項目名">
+<!-- ===== ② Add Item Section ===== -->
+<div class="section-card" id="addSection">
+  <div class="section-title">
+    <span class="icon" style="background:rgba(255,107,107,0.12);">💳</span>
+    立替・品目を追加
+  </div>
 
-<div style="height:10px;"></div>
+  <div style="display:grid;gap:0.6rem;">
+    <!-- Item name -->
+    <div>
+      <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:0.28rem;">項目・店名</label>
+      <input id="itemName" class="inp" placeholder="例: 居酒屋Aのピザ" maxlength="30" autocomplete="off">
+    </div>
 
-<input id="editAmount" class="inp" type="number" placeholder="金額">
+    <!-- Amount + Payer -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+      <div>
+        <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:0.28rem;">金額 (円)</label>
+        <div class="amount-wrap">
+          <span class="amount-prefix">¥</span>
+          <input id="itemAmount" class="inp-amount" type="tel" inputmode="numeric" placeholder="2,400" autocomplete="off">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:0.28rem;">支払った人</label>
+        <select id="itemPayer" class="inp">
+          <option value="">選択</option>
+        </select>
+      </div>
+    </div>
 
-<div style="height:10px;"></div>
+    <!-- Payer include toggle -->
+    <div style="display:flex;align-items:center;gap:0.5rem;background:var(--gray-soft);border-radius:10px;padding:0.5rem 0.75rem;">
+      <input type="checkbox" id="payerIncluded" checked style="width:18px;height:18px;accent-color:var(--mint);cursor:pointer;flex-shrink:0;">
+      <label for="payerIncluded" style="font-size:0.82rem;font-weight:600;color:var(--navy);cursor:pointer;line-height:1.3;">
+        支払者も割り勘対象に含める
+      </label>
+    </div>
 
-<select id="editPayer" class="inp"></select>
+    <!-- Target chips -->
+    <div>
+      <div style="display:flex;align-items:center;margin-bottom:0.35rem;">
+        <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);">対象者</label>
+        <div class="quick-btns" style="margin-left:auto;">
+          <button class="quick-btn" onclick="checkAll(true)">全員</button>
+          <button class="quick-btn" onclick="checkAll(false)">クリア</button>
+        </div>
+      </div>
+      <div id="targetChips" class="target-check-wrap">
+        <span style="font-size:0.82rem;color:var(--text-sub);">メンバーを追加してください</span>
+      </div>
+    </div>
+  </div>
 
-<div style="height:16px;"></div>
-
-<div id="editTargets"></div>
-
-<div style="display:flex;gap:10px;margin-top:20px;">
-
-<button onclick="closeEditModal()" style="
-flex:1;
-height:48px;
-border:none;
-border-radius:14px;
-background:#E5E7EB;
-font-weight:700;
-">
-キャンセル
-</button>
-
-<button onclick="saveEditItem()" style="
-flex:1;
-height:48px;
-border:none;
-border-radius:14px;
-background:#FF6B6B;
-color:white;
-font-weight:800;
-">
-保存
-</button>
-
+  <div id="itemError" class="error-msg"></div>
+  <button class="btn-primary" style="width:100%;margin-top:0.85rem;" onclick="addItem()">＋ 追加する</button>
 </div>
 
+<!-- ===== ③ History Section ===== -->
+<div class="section-card" id="historySection">
+  <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.8rem;">
+    <div class="section-title" style="margin-bottom:0;flex-shrink:0;">
+      <span class="icon" style="background:rgba(255,230,109,0.25);">📋</span>
+      入力履歴
+    </div>
+    <div id="totalChip" class="total-chip" style="display:none;">
+      合計 <span id="totalAmt">0</span>円
+    </div>
+    <div class="sort-toggle" style="margin-left:auto;">
+      <button class="sort-btn active" id="sortNew" onclick="setSort('new')">新しい順</button>
+      <button class="sort-btn" id="sortOld" onclick="setSort('old')">古い順</button>
+    </div>
+  </div>
+  <div id="historyList">
+    <div class="empty-state"><div class="big">📝</div>まだ項目がありません</div>
+  </div>
 </div>
+
+<!-- ===== ④ Settlement Section ===== -->
+<div class="settlement-card" id="settlementSection">
+  <div class="settlement-title">
+    <div style="display:flex;align-items:center;gap:0.5rem;">💰 精算結果</div>
+    <button onclick="copySettlement()" style="background:rgba(255,255,255,0.12);border:none;border-radius:8px;padding:0.3rem 0.65rem;color:rgba(255,255,255,0.8);font-size:0.75rem;font-weight:700;cursor:pointer;touch-action:manipulation;">📋 コピー</button>
+  </div>
+
+  <div class="tab-toggle">
+    <button class="tab-btn active" id="tabSettle" onclick="switchTab('settle')">送金ルート</button>
+    <button class="tab-btn" id="tabBalance" onclick="switchTab('balance')">収支明細</button>
+  </div>
+
+  <div id="settleView">
+    <div class="settled-msg" id="settleEmpty">まだデータがありません</div>
+    <div id="settleRows"></div>
+  </div>
+  <div id="balanceView" style="display:none;">
+    <div id="balanceRows"></div>
+  </div>
+</div>
+
+<div style="text-align:center;font-size:0.7rem;color:#B0B8C8;padding-bottom:0.3rem;">データはこのブラウザに保存されます</div>
+
+<!-- ===== Bottom FAB Bar ===== -->
+<div class="fab-bar">
+  <button class="fab-item" onclick="scrollToAdd()">
+    <span class="fab-icon">✏️</span>
+    <span class="fab-label">入力</span>
+  </button>
+  <button class="fab-item fab-add" onclick="addItem()">
+    <span class="fab-icon">＋</span>
+    <span class="fab-label" style="color:rgba(255,255,255,0.9);">追加</span>
+  </button>
+  <button class="fab-item" onclick="scrollToSettle()">
+    <span class="fab-icon">💰</span>
+    <span class="fab-label">精算</span>
+  </button>
+  <button class="fab-item" onclick="saveImage()">
+    <span class="fab-icon">🖼</span>
+    <span class="fab-label">保存</span>
+  </button>
+  <button class="fab-item" onclick="shareResult()">
+    <span class="fab-icon">📤</span>
+    <span class="fab-label">共有</span>
+  </button>
+</div>
+
+<!-- ===== Edit Modal ===== -->
+<div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ 項目を編集</div>
+    <div style="display:grid;gap:0.6rem;">
+      <div>
+        <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:0.28rem;">項目・店名</label>
+        <input id="editName" class="inp" maxlength="30" autocomplete="off">
+      </div>
+      <div>
+        <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:0.28rem;">金額 (円)</label>
+        <div class="amount-wrap">
+          <span class="amount-prefix">¥</span>
+          <input id="editAmount" class="inp-amount" type="tel" inputmode="numeric" autocomplete="off">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);display:block;margin-bottom:0.28rem;">支払った人</label>
+        <select id="editPayer" class="inp"></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;background:var(--gray-soft);border-radius:10px;padding:0.5rem 0.75rem;">
+        <input type="checkbox" id="editPayerIncluded" style="width:18px;height:18px;accent-color:var(--mint);cursor:pointer;flex-shrink:0;">
+        <label for="editPayerIncluded" style="font-size:0.82rem;font-weight:600;color:var(--navy);cursor:pointer;">支払者も割り勘対象に含める</label>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;margin-bottom:0.35rem;">
+          <label style="font-size:0.78rem;font-weight:700;color:var(--text-sub);">対象者</label>
+          <div class="quick-btns" style="margin-left:auto;">
+            <button class="quick-btn" onclick="editCheckAll(true)">全員</button>
+            <button class="quick-btn" onclick="editCheckAll(false)">クリア</button>
+          </div>
+        </div>
+        <div id="editTargetChips" class="target-check-wrap"></div>
+      </div>
+    </div>
+    <div id="editError" class="error-msg"></div>
+    <button class="btn-primary" style="width:100%;margin-top:0.85rem;" onclick="saveEdit()">保存する</button>
+  </div>
+</div>
+
+<!-- ===== Confirm Dialog ===== -->
+<div class="confirm-overlay" id="confirmDialog">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirmTitle">確認</div>
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-btns">
+      <button class="confirm-cancel" onclick="closeConfirm()">キャンセル</button>
+      <button class="confirm-ok" id="confirmOkBtn" onclick="doConfirm()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div class="toast" id="toast"></div>
+
+<!-- Hidden export card for image generation -->
+<div style="position:fixed;left:-9999px;top:-9999px;z-index:-1;">
+  <div id="exportCard"></div>
 </div>
 
 <script>
-/* =========================
-   Phase1 改善パッチ
-========================= */
+/* =============================================
+   DATA LAYER (Firebase-ready abstraction)
+   Replace these functions to switch to cloud
+   ============================================= */
+const DB = {
+  get(key) {
+    try { return JSON.parse(localStorage.getItem('wk_' + key) || 'null'); } catch(e) { return null; }
+  },
+  set(key, val) {
+    try { localStorage.setItem('wk_' + key, JSON.stringify(val)); } catch(e) {}
+  },
+  remove(key) {
+    localStorage.removeItem('wk_' + key);
+  },
+  clear() {
+    ['members','items'].forEach(k => localStorage.removeItem('wk_' + k));
+  }
+};
 
-let currentEditId = null;
-let historySort = 'new';
+/* =============================================
+   STATE
+   ============================================= */
+let members = [];
+let items = [];
+let sortOrder = 'new'; // 'new' | 'old'
+let editingId = null;
+let confirmCallback = null;
 
-/* ===== 金額入力 3桁カンマ ===== */
-document.getElementById('itemAmount').addEventListener('input', function() {
-  this.value = this.value.replace(/[^\d]/g,'');
-});
-
-/* ===== スクロール ===== */
-function scrollToSettlement() {
-  document.querySelector('.settlement-card')
-    .scrollIntoView({ behavior:'smooth' });
+/* =============================================
+   INIT & PERSIST
+   ============================================= */
+function loadData() {
+  members = DB.get('members') || [];
+  items = DB.get('items') || [];
+}
+function saveData() {
+  DB.set('members', members);
+  DB.set('items', items);
 }
 
-function scrollToTopForm() {
-  document.querySelectorAll('.section-card')[1]
-    .scrollIntoView({ behavior:'smooth' });
+/* =============================================
+   HELPERS
+   ============================================= */
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function fmtAmt(n) { return Number(n).toLocaleString('ja-JP'); }
+
+// Parse comma-formatted number input
+function parseAmt(s) {
+  return parseInt(String(s).replace(/[,，￥¥\s]/g,''), 10);
 }
 
-/* ===== 全削除 ===== */
-function resetAllData() {
-  const ok = confirm('全データを削除しますか？');
-  if (!ok) return;
+// Format amount input with commas as user types
+function formatAmtInput(el) {
+  let raw = el.value.replace(/[^0-9]/g,'');
+  if (raw === '') { el.value = ''; return; }
+  el.value = Number(raw).toLocaleString('ja-JP');
+}
 
-  members = [];
-  items = [];
+// Show toast notification
+function showToast(msg, duration=2000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
 
-  localStorage.removeItem('wk_members');
-  localStorage.removeItem('wk_items');
+// Shake animation helper
+function shakeEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('shake');
+  setTimeout(() => el.classList.remove('shake'), 400);
+}
 
+/* =============================================
+   CONFIRM DIALOG
+   ============================================= */
+function showConfirm(title, msg, okLabel, cb) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmOkBtn').textContent = okLabel || '削除する';
+  confirmCallback = cb;
+  document.getElementById('confirmDialog').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirmDialog').classList.remove('open');
+  confirmCallback = null;
+}
+function doConfirm() {
+  closeConfirm();
+  if (confirmCallback) confirmCallback();
+}
+
+/* =============================================
+   MEMBER MANAGEMENT
+   ============================================= */
+function addMember() {
+  const inp = document.getElementById('memberInput');
+  const errEl = document.getElementById('memberError');
+  const name = inp.value.trim();
+  errEl.classList.remove('show');
+
+  if (!name) { shakeEl('memberInput'); return; }
+  if (members.includes(name)) {
+    errEl.classList.add('show');
+    shakeEl('memberInput');
+    setTimeout(() => errEl.classList.remove('show'), 2000);
+    return;
+  }
+  members.push(name);
+  inp.value = '';
+  saveData();
+  renderMembers();
+  renderPayerSelect();
+  renderTargetChips();
+  renderSettlement();
+}
+
+// ① Member delete: confirm + cascade cleanup
+function confirmDeleteMember(name) {
+  const related = items.filter(it => it.payer === name || it.targets.includes(name));
+  const msg = related.length > 0
+    ? `「${name}」を削除すると、関連する履歴 ${related.length} 件も削除されます。よろしいですか？`
+    : `「${name}」を削除しますか？`;
+  showConfirm('メンバーを削除', msg, '削除する', () => deleteMember(name));
+}
+
+function deleteMember(name) {
+  members = members.filter(m => m !== name);
+  // Remove all items where this person is payer OR is the only target
+  items = items.filter(it => {
+    if (it.payer === name) return false;
+    it.targets = it.targets.filter(t => t !== name);
+    if (it.targets.length === 0) return false;
+    return true;
+  });
+  saveData();
   renderMembers();
   renderPayerSelect();
   renderTargetChips();
   renderHistory();
   renderSettlement();
+  showToast(`${name} を削除しました`);
 }
 
-/* ===== コピー ===== */
-async function copySettlement() {
-
-  const balance = calcSettlement();
-  const transfers = minimizeTransfers(balance);
-
-  if (transfers.length === 0) {
-    alert('コピーする精算結果がありません');
+function renderMembers() {
+  const wrap = document.getElementById('memberBadges');
+  if (members.length === 0) {
+    wrap.innerHTML = '<span style="font-size:0.82rem;color:var(--text-sub);">まだメンバーがいません</span>';
     return;
   }
-
-  let txt = '【わりかん精算】\n\n';
-
-  transfers.forEach(t => {
-    txt += `${t.from} → ${t.to} ${t.amt.toLocaleString()}円\n`;
-  });
-
-  try {
-    await navigator.clipboard.writeText(txt);
-    alert('コピーしました');
-  } catch(e) {
-    alert('コピー失敗');
-  }
+  wrap.innerHTML = members.map(m => `
+    <span class="member-badge">
+      ${escHtml(m)}
+      <button class="del-btn" onclick="confirmDeleteMember('${escJs(m)}')" aria-label="削除">✕</button>
+    </span>
+  `).join('');
 }
 
-/* ===== 履歴並び替え ===== */
-const historyHeader = document.querySelector('#historyList').parentElement;
+function renderPayerSelect(selectId='itemPayer') {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    members.map(m => `<option value="${escHtml(m)}"${m===cur?' selected':''}>${escHtml(m)}</option>`).join('');
+}
 
-const sortWrap = document.createElement('div');
-sortWrap.style.marginTop = '10px';
-sortWrap.innerHTML = `
-<div style="display:flex;gap:8px;">
-<button id="sortNewBtn" class="quick-btn">新しい順</button>
-<button id="sortOldBtn" class="quick-btn">古い順</button>
-</div>
-`;
+/* =============================================
+   TARGET CHIPS (add form)
+   ============================================= */
+function renderTargetChips() {
+  const wrap = document.getElementById('targetChips');
+  if (members.length === 0) {
+    wrap.innerHTML = '<span style="font-size:0.82rem;color:var(--text-sub);">メンバーを追加してください</span>';
+    return;
+  }
+  wrap.innerHTML = members.map(m => buildChipHtml(m, true)).join('');
+  attachChipEvents('targetChips');
+}
 
-historyHeader.insertBefore(sortWrap, document.getElementById('historyList'));
+function buildChipHtml(m, checked) {
+  return `<button type="button" class="target-chip${checked?' checked':''}" data-name="${escHtml(m)}" onclick="toggleTargetChip(this)">
+    ${checked?'✓ ':''}${escHtml(m)}
+  </button>`;
+}
 
-document.getElementById('sortNewBtn').onclick = () => {
-  historySort = 'new';
+function toggleTargetChip(btn) {
+  const checked = btn.classList.toggle('checked');
+  btn.textContent = (checked ? '✓ ' : '') + btn.dataset.name;
+}
+
+function attachChipEvents() {} // chips use inline onclick now
+
+function checkAll(val) {
+  document.querySelectorAll('#targetChips .target-chip').forEach(btn => {
+    btn.classList.toggle('checked', val);
+    btn.textContent = (val ? '✓ ' : '') + btn.dataset.name;
+  });
+}
+
+function getCheckedTargets(containerId) {
+  return [...document.querySelectorAll(`#${containerId} .target-chip.checked`)].map(b => b.dataset.name);
+}
+
+/* =============================================
+   ADD ITEM
+   ============================================= */
+function addItem() {
+  const nameEl = document.getElementById('itemName');
+  const amtEl = document.getElementById('itemAmount');
+  const payerEl = document.getElementById('itemPayer');
+  const errEl = document.getElementById('itemError');
+  const payerIncluded = document.getElementById('payerIncluded').checked;
+
+  errEl.classList.remove('show');
+
+  if (members.length === 0) {
+    errEl.textContent = 'メンバーを先に追加してください';
+    errEl.classList.add('show'); return;
+  }
+
+  const rawAmt = parseAmt(amtEl.value);
+  if (!rawAmt || rawAmt <= 0) {
+    errEl.textContent = '金額を入力してください';
+    errEl.classList.add('show');
+    shakeEl('itemAmount'); return;
+  }
+
+  const payer = payerEl.value;
+  if (!payer) {
+    errEl.textContent = '支払った人を選択してください';
+    errEl.classList.add('show');
+    shakeEl('itemPayer'); return;
+  }
+
+  let targets = getCheckedTargets('targetChips');
+  // Auto-add/remove payer based on toggle
+  if (payerIncluded && !targets.includes(payer)) targets.push(payer);
+  if (!payerIncluded) targets = targets.filter(t => t !== payer);
+
+  if (targets.length === 0) {
+    errEl.textContent = '対象者を1人以上選択してください';
+    errEl.classList.add('show'); return;
+  }
+
+  const name = nameEl.value.trim() || '無題';
+  items.push({ id: Date.now(), name, amount: rawAmt, payer, targets, payerIncluded });
+  nameEl.value = '';
+  amtEl.value = '';
+
+  saveData();
   renderHistory();
-};
+  renderSettlement();
+  showToast('追加しました ✓');
+}
 
-document.getElementById('sortOldBtn').onclick = () => {
-  historySort = 'old';
+/* =============================================
+   HISTORY
+   ============================================= */
+function setSort(order) {
+  sortOrder = order;
+  document.getElementById('sortNew').classList.toggle('active', order==='new');
+  document.getElementById('sortOld').classList.toggle('active', order==='old');
   renderHistory();
-};
+}
 
-/* ===== renderHistory 上書き ===== */
-const oldRenderHistory = renderHistory;
-
-renderHistory = function() {
-
+function renderHistory() {
   const wrap = document.getElementById('historyList');
   const chip = document.getElementById('totalChip');
   const totalEl = document.getElementById('totalAmt');
 
   if (items.length === 0) {
-    wrap.innerHTML = `
-    <div class="empty-state">
-      <div class="big">📝</div>
-      まだ項目がありません
-    </div>
-    `;
+    wrap.innerHTML = '<div class="empty-state"><div class="big">📝</div>まだ項目がありません</div>';
     chip.style.display = 'none';
     return;
   }
 
-  let sorted = [...items];
-
-  if (historySort === 'new') {
-    sorted.sort((a,b) => b.id - a.id);
-  } else {
-    sorted.sort((a,b) => a.id - b.id);
-  }
-
-  const total = items.reduce((s,i)=>s+i.amount,0);
-
+  const sorted = [...items].sort((a,b) => sortOrder==='new' ? b.id - a.id : a.id - b.id);
+  const total = items.reduce((s,i) => s + i.amount, 0);
   chip.style.display = 'inline-flex';
-  totalEl.textContent = total.toLocaleString();
+  totalEl.textContent = fmtAmt(total);
 
   wrap.innerHTML = sorted.map(it => `
-    <div class="history-item">
-
+    <div class="history-item" id="hi_${it.id}">
       <div class="history-dot">🛒</div>
-
       <div class="history-content">
         <div class="history-name">${escHtml(it.name)}</div>
-
         <div class="history-sub">
-          支払: ${escHtml(it.payer)}
-          ／ 対象: ${it.targets.map(escHtml).join(', ')}
+          支払: ${escHtml(it.payer)} ／ 対象: ${it.targets.map(escHtml).join(', ')}
         </div>
       </div>
-
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-
-        <div class="history-amount">
-          ${it.amount.toLocaleString()}円
-        </div>
-
-        <div style="display:flex;gap:4px;">
-
-          <button
-            onclick="openEditModal(${it.id})"
-            style="
-            border:none;
-            background:#EEF2FF;
-            border-radius:10px;
-            padding:6px 10px;
-            font-size:12px;
-            font-weight:700;
-            ">
-            編集
-          </button>
-
-          <button
-            class="del-history"
-            onclick="deleteItem(${it.id})">
-            🗑
-          </button>
-
-        </div>
-
+      <div class="history-amount">¥${fmtAmt(it.amount)}</div>
+      <div class="history-actions">
+        <button class="icon-btn edit" onclick="openEditModal(${it.id})" aria-label="編集">✏️</button>
+        <button class="icon-btn" onclick="confirmDeleteItem(${it.id})" aria-label="削除">🗑</button>
       </div>
-
     </div>
   `).join('');
-};
-
-/* ===== 編集 ===== */
-function openEditModal(id) {
-
-  const item = items.find(i => i.id === id);
-  if (!item) return;
-
-  currentEditId = id;
-
-  document.getElementById('editModal').style.display = 'flex';
-
-  document.getElementById('editName').value = item.name;
-  document.getElementById('editAmount').value = item.amount;
-
-  const payerSel = document.getElementById('editPayer');
-
-  payerSel.innerHTML = members.map(m => `
-    <option value="${m}" ${m===item.payer?'selected':''}>
-      ${m}
-    </option>
-  `).join('');
-
-  const targetWrap = document.getElementById('editTargets');
-
-  targetWrap.innerHTML = members.map(m => `
-    <label class="target-chip ${item.targets.includes(m)?'checked':''}">
-      <input
-        type="checkbox"
-        value="${m}"
-        ${item.targets.includes(m)?'checked':''}
-      >
-      ${item.targets.includes(m)?'✓':''} ${m}
-    </label>
-  `).join('');
-
-  targetWrap.querySelectorAll('input').forEach(cb => {
-    cb.addEventListener('change', function() {
-      const label = this.closest('.target-chip');
-
-      if (this.checked) {
-        label.classList.add('checked');
-        label.innerHTML = `
-          <input type="checkbox" value="${this.value}" checked>
-          ✓ ${this.value}
-        `;
-      } else {
-        label.classList.remove('checked');
-        label.innerHTML = `
-          <input type="checkbox" value="${this.value}">
-          ${this.value}
-        `;
-      }
-
-      label.querySelector('input').addEventListener('change', arguments.callee);
-    });
-  });
-
 }
 
-function closeEditModal() {
-  document.getElementById('editModal').style.display = 'none';
-  currentEditId = null;
+function confirmDeleteItem(id) {
+  const it = items.find(i => i.id === id);
+  if (!it) return;
+  showConfirm('項目を削除', `「${it.name}」を削除しますか？`, '削除する', () => deleteItem(id));
 }
 
-function saveEditItem() {
-
-  const item = items.find(i => i.id === currentEditId);
-  if (!item) return;
-
-  const name = document.getElementById('editName').value.trim();
-  const amount = parseInt(document.getElementById('editAmount').value,10);
-  const payer = document.getElementById('editPayer').value;
-
-  const targets = [
-    ...document.querySelectorAll('#editTargets input:checked')
-  ].map(c => c.value);
-
-  if (!amount || amount <= 0) {
-    alert('金額エラー');
-    return;
-  }
-
-  if (targets.length === 0) {
-    alert('対象者を選択してください');
-    return;
-  }
-
-  item.name = name || '無題';
-  item.amount = amount;
-  item.payer = payer;
-  item.targets = targets;
-
-  save();
-
+function deleteItem(id) {
+  items = items.filter(it => it.id !== id);
+  saveData();
   renderHistory();
   renderSettlement();
-
-  closeEditModal();
+  showToast('削除しました');
 }
 
-/* ===== メンバー削除改善 ===== */
-const oldDeleteMember = deleteMember;
+/* =============================================
+   EDIT MODAL (④)
+   ============================================= */
+function openEditModal(id) {
+  const it = items.find(i => i.id === id);
+  if (!it) return;
+  editingId = id;
 
-deleteMember = function(name) {
+  document.getElementById('editName').value = it.name;
+  document.getElementById('editAmount').value = fmtAmt(it.amount);
+  document.getElementById('editPayerIncluded').checked = it.payerIncluded !== false;
+  document.getElementById('editError').classList.remove('show');
 
-  const related = items.filter(it =>
-    it.payer === name ||
-    it.targets.includes(name)
-  );
+  // Payer select
+  const sel = document.getElementById('editPayer');
+  sel.innerHTML = '<option value="">選択</option>' +
+    members.map(m => `<option value="${escHtml(m)}"${m===it.payer?' selected':''}>${escHtml(m)}</option>`).join('');
 
-  if (related.length > 0) {
+  // Target chips
+  const wrap = document.getElementById('editTargetChips');
+  wrap.innerHTML = members.map(m => buildChipHtml(m, it.targets.includes(m))).join('');
 
-    const ok = confirm(
-      `${name}を削除すると関連履歴も削除されます`
-    );
+  document.getElementById('editModal').classList.add('open');
+}
 
-    if (!ok) return;
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('editModal')) return;
+  document.getElementById('editModal').classList.remove('open');
+  editingId = null;
+}
 
-    items = items.filter(it =>
-      it.payer !== name &&
-      !it.targets.includes(name)
-    );
+function editCheckAll(val) {
+  document.querySelectorAll('#editTargetChips .target-chip').forEach(btn => {
+    btn.classList.toggle('checked', val);
+    btn.textContent = (val ? '✓ ' : '') + btn.dataset.name;
+  });
+}
+
+function saveEdit() {
+  const errEl = document.getElementById('editError');
+  errEl.classList.remove('show');
+
+  const rawAmt = parseAmt(document.getElementById('editAmount').value);
+  if (!rawAmt || rawAmt <= 0) {
+    errEl.textContent = '金額を入力してください'; errEl.classList.add('show'); return;
+  }
+  const payer = document.getElementById('editPayer').value;
+  if (!payer) {
+    errEl.textContent = '支払った人を選択してください'; errEl.classList.add('show'); return;
+  }
+  const payerIncluded = document.getElementById('editPayerIncluded').checked;
+  let targets = getCheckedTargets('editTargetChips');
+  if (payerIncluded && !targets.includes(payer)) targets.push(payer);
+  if (!payerIncluded) targets = targets.filter(t => t !== payer);
+  if (targets.length === 0) {
+    errEl.textContent = '対象者を1人以上選択してください'; errEl.classList.add('show'); return;
   }
 
-  members = members.filter(m => m !== name);
+  const name = document.getElementById('editName').value.trim() || '無題';
+  const idx = items.findIndex(i => i.id === editingId);
+  if (idx !== -1) {
+    items[idx] = { ...items[idx], name, amount: rawAmt, payer, targets, payerIncluded };
+  }
+  saveData();
+  document.getElementById('editModal').classList.remove('open');
+  editingId = null;
+  renderHistory();
+  renderSettlement();
+  showToast('更新しました ✓');
+}
 
-  save();
+/* =============================================
+   SETTLEMENT LOGIC
+   ============================================= */
+function calcBalance() {
+  const balance = {};
+  members.forEach(m => balance[m] = 0);
 
+  items.forEach(it => {
+    const n = it.targets.length;
+    const base = Math.floor(it.amount / n);
+    const remainder = it.amount - base * n;
+    it.targets.forEach((t, i) => {
+      if (!(t in balance)) balance[t] = 0;
+      balance[t] -= base + (i < remainder ? 1 : 0);
+    });
+    if (!(it.payer in balance)) balance[it.payer] = 0;
+    balance[it.payer] += it.amount;
+  });
+
+  return balance;
+}
+
+function minimizeTransfers(balance) {
+  const creditors = [], debtors = [];
+  Object.entries(balance).forEach(([name, val]) => {
+    const v = Math.round(val);
+    if (v > 0) creditors.push({ name, amt: v });
+    else if (v < 0) debtors.push({ name, amt: -v });
+  });
+  // Sort descending for better matching
+  creditors.sort((a,b) => b.amt - a.amt);
+  debtors.sort((a,b) => b.amt - a.amt);
+
+  const transfers = [];
+  let ci = 0, di = 0;
+  while (ci < creditors.length && di < debtors.length) {
+    const amt = Math.min(creditors[ci].amt, debtors[di].amt);
+    if (amt > 0) transfers.push({ from: debtors[di].name, to: creditors[ci].name, amt });
+    creditors[ci].amt -= amt;
+    debtors[di].amt -= amt;
+    if (creditors[ci].amt <= 0) ci++;
+    if (debtors[di].amt <= 0) di++;
+  }
+  return transfers;
+}
+
+function renderSettlement() {
+  const balance = calcBalance();
+  const transfers = minimizeTransfers(balance);
+
+  // Balance tab
+  const bRows = document.getElementById('balanceRows');
+  if (members.length === 0) {
+    bRows.innerHTML = '<div class="settled-msg">まだデータがありません</div>';
+  } else {
+    bRows.innerHTML = members.map(m => {
+      const v = Math.round(balance[m] || 0);
+      const cls = v > 0 ? 'balance-pos' : v < 0 ? 'balance-neg' : 'balance-zero';
+      return `<div class="balance-row">
+        <span class="balance-name">${escHtml(m)}</span>
+        <span class="balance-val ${cls}">${v > 0 ? '+' : ''}${fmtAmt(v)}円</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Settle tab
+  const sRows = document.getElementById('settleRows');
+  const sEmpty = document.getElementById('settleEmpty');
+  if (transfers.length === 0) {
+    sRows.innerHTML = '';
+    sEmpty.textContent = items.length === 0 ? 'まだデータがありません' : '✅ 全員精算済み！';
+    sEmpty.style.display = 'block';
+  } else {
+    sEmpty.style.display = 'none';
+    sRows.innerHTML = transfers.map(t => `
+      <div class="settlement-row">
+        <span class="s-from">${escHtml(t.from)}</span>
+        <span class="s-arrow">➡️</span>
+        <span class="s-to">${escHtml(t.to)}</span>
+        <span class="s-amount">¥${fmtAmt(t.amt)}</span>
+      </div>
+    `).join('');
+  }
+}
+
+function switchTab(tab) {
+  document.getElementById('tabSettle').classList.toggle('active', tab==='settle');
+  document.getElementById('tabBalance').classList.toggle('active', tab==='balance');
+  document.getElementById('settleView').style.display = tab==='settle' ? 'block' : 'none';
+  document.getElementById('balanceView').style.display = tab==='balance' ? 'block' : 'none';
+}
+
+/* =============================================
+   ② RESET ALL
+   ============================================= */
+function confirmResetAll() {
+  showConfirm('全データを削除',
+    'メンバー・履歴・精算データをすべて削除します。この操作は元に戻せません。',
+    '全削除する', resetAll);
+}
+function resetAll() {
+  members = [];
+  items = [];
+  DB.clear();
   renderMembers();
   renderPayerSelect();
   renderTargetChips();
   renderHistory();
   renderSettlement();
-};
+  showToast('全データを削除しました');
+}
 
+/* =============================================
+   ⑧ COPY RESULT
+   ============================================= */
+function copySettlement() {
+  const balance = calcBalance();
+  const transfers = minimizeTransfers(balance);
+  if (transfers.length === 0 && items.length === 0) { showToast('精算データがありません'); return; }
+
+  const total = items.reduce((s,i) => s+i.amount, 0);
+  const date = new Date().toLocaleDateString('ja-JP');
+  let text = `【わりかん精算結果】${date}\n`;
+  text += `合計: ¥${fmtAmt(total)}\n`;
+  text += `参加者: ${members.join('、')}\n\n`;
+
+  if (transfers.length === 0) {
+    text += '✅ 全員精算済み！';
+  } else {
+    text += '--- 送金ルート ---\n';
+    transfers.forEach(t => { text += `${t.from} → ${t.to}  ¥${fmtAmt(t.amt)}\n`; });
+  }
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('📋 コピーしました！'))
+      .catch(() => fallbackCopy(text));
+  } else { fallbackCopy(text); }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); showToast('📋 コピーしました！'); } catch(e) { showToast('コピーに失敗しました'); }
+  document.body.removeChild(ta);
+}
+
+/* =============================================
+   ⑨ SAVE IMAGE (html2canvas)
+   ============================================= */
+function saveImage() {
+  const balance = calcBalance();
+  const transfers = minimizeTransfers(balance);
+  const total = items.reduce((s,i) => s+i.amount, 0);
+  const date = new Date().toLocaleDateString('ja-JP');
+
+  const card = document.getElementById('exportCard');
+  let html = `
+    <div class="ec-title">🧾 わりかん精算結果</div>
+    <div class="ec-sub">${date} ／ 参加者: ${members.map(escHtml).join('、')}</div>
+    <div class="ec-total">合計金額: ¥${fmtAmt(total)}</div>
+  `;
+
+  if (transfers.length === 0) {
+    html += `<div style="color:rgba(255,255,255,0.6);font-size:0.88rem;padding:0.5rem 0;">✅ 全員精算済み！</div>`;
+  } else {
+    transfers.forEach(t => {
+      html += `<div class="ec-row"><span>${escHtml(t.from)}</span><span style="color:var(--yellow);font-size:0.9rem;">➡️</span><span>${escHtml(t.to)}</span><span class="ec-amount">¥${fmtAmt(t.amt)}</span></div>`;
+    });
+  }
+  html += `<div class="ec-footer">わりかんアプリ</div>`;
+  card.innerHTML = html;
+
+  if (typeof html2canvas === 'undefined') {
+    showToast('画像保存ライブラリが読み込まれていません'); return;
+  }
+
+  showToast('画像を生成中…');
+  html2canvas(card, { backgroundColor: null, scale: 2, useCORS: true }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = `warikan_${date.replace(/\//g,'-')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('📸 画像を保存しました！');
+  }).catch(() => showToast('画像生成に失敗しました'));
+}
+
+/* =============================================
+   ③ SHARE (Web Share API)
+   ============================================= */
+function shareResult() {
+  const balance = calcBalance();
+  const transfers = minimizeTransfers(balance);
+  const total = items.reduce((s,i) => s+i.amount, 0);
+  const date = new Date().toLocaleDateString('ja-JP');
+
+  let text = `【わりかん精算結果】${date}\n合計: ¥${fmtAmt(total)}\n参加者: ${members.join('、')}\n\n`;
+  if (transfers.length === 0) {
+    text += '✅ 全員精算済み！';
+  } else {
+    transfers.forEach(t => { text += `${t.from} → ${t.to}  ¥${fmtAmt(t.amt)}\n`; });
+  }
+
+  if (navigator.share) {
+    navigator.share({ title: 'わりかん精算結果', text }).catch(() => {});
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+/* =============================================
+   SCROLL HELPERS
+   ============================================= */
+function scrollToAdd() {
+  document.getElementById('addSection').scrollIntoView({ behavior:'smooth', block:'start' });
+  setTimeout(() => document.getElementById('itemName').focus(), 400);
+}
+function scrollToSettle() {
+  document.getElementById('settlementSection').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* =============================================
+   KEYBOARD / ENTER SUPPORT
+   ============================================= */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('memberInput').addEventListener('keydown', e => { if(e.key==='Enter') addMember(); });
+  document.getElementById('itemAmount').addEventListener('input', function() { formatAmtInput(this); });
+  document.getElementById('editAmount').addEventListener('input', function() { formatAmtInput(this); });
+
+  // Close modal on back gesture (popstate)
+  window.addEventListener('popstate', () => {
+    document.getElementById('editModal').classList.remove('open');
+    document.getElementById('confirmDialog').classList.remove('open');
+  });
+});
+
+/* =============================================
+   BOOT
+   ============================================= */
+loadData();
+renderMembers();
+renderPayerSelect();
+renderTargetChips();
 renderHistory();
 renderSettlement();
-
 </script>
+</body>
+</html>
