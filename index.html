@@ -1,0 +1,458 @@
+<!-- ▼ 追加改善パッチ Phase1 -->
+<!-- </body> の直前に追加 -->
+
+<!-- html2canvas（今後の画像保存用） -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<!-- ===== 固定アクションバー ===== -->
+<div id="bottomBar" style="
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+z-index:9999;
+background:rgba(255,255,255,0.95);
+backdrop-filter:blur(10px);
+border-top:1px solid #E5E7EB;
+padding:10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+display:flex;
+gap:8px;
+box-shadow:0 -4px 20px rgba(0,0,0,0.08);
+">
+
+<button onclick="scrollToTopForm()" style="
+flex:1;
+height:48px;
+border:none;
+border-radius:14px;
+background:#FF6B6B;
+color:white;
+font-weight:800;
+font-size:14px;
+">
+＋追加
+</button>
+
+<button onclick="scrollToSettlement()" style="
+flex:1;
+height:48px;
+border:none;
+border-radius:14px;
+background:#4ECDC4;
+color:white;
+font-weight:800;
+font-size:14px;
+">
+精算結果
+</button>
+
+<button onclick="copySettlement()" style="
+flex:1;
+height:48px;
+border:none;
+border-radius:14px;
+background:#2D3561;
+color:white;
+font-weight:800;
+font-size:14px;
+">
+コピー
+</button>
+
+<button onclick="resetAllData()" style="
+width:48px;
+height:48px;
+border:none;
+border-radius:14px;
+background:#F3F4F6;
+font-size:18px;
+">
+🗑
+</button>
+
+</div>
+
+<!-- ===== 編集モーダル ===== -->
+<div id="editModal" style="
+display:none;
+position:fixed;
+inset:0;
+background:rgba(0,0,0,0.45);
+z-index:10000;
+align-items:flex-end;
+justify-content:center;
+">
+
+<div style="
+background:white;
+width:100%;
+max-width:520px;
+border-radius:24px 24px 0 0;
+padding:20px;
+max-height:90vh;
+overflow:auto;
+">
+
+<div style="
+font-size:20px;
+font-weight:800;
+margin-bottom:16px;
+">
+履歴を編集
+</div>
+
+<input id="editName" class="inp" placeholder="項目名">
+
+<div style="height:10px;"></div>
+
+<input id="editAmount" class="inp" type="number" placeholder="金額">
+
+<div style="height:10px;"></div>
+
+<select id="editPayer" class="inp"></select>
+
+<div style="height:16px;"></div>
+
+<div id="editTargets"></div>
+
+<div style="display:flex;gap:10px;margin-top:20px;">
+
+<button onclick="closeEditModal()" style="
+flex:1;
+height:48px;
+border:none;
+border-radius:14px;
+background:#E5E7EB;
+font-weight:700;
+">
+キャンセル
+</button>
+
+<button onclick="saveEditItem()" style="
+flex:1;
+height:48px;
+border:none;
+border-radius:14px;
+background:#FF6B6B;
+color:white;
+font-weight:800;
+">
+保存
+</button>
+
+</div>
+
+</div>
+</div>
+
+<script>
+/* =========================
+   Phase1 改善パッチ
+========================= */
+
+let currentEditId = null;
+let historySort = 'new';
+
+/* ===== 金額入力 3桁カンマ ===== */
+document.getElementById('itemAmount').addEventListener('input', function() {
+  this.value = this.value.replace(/[^\d]/g,'');
+});
+
+/* ===== スクロール ===== */
+function scrollToSettlement() {
+  document.querySelector('.settlement-card')
+    .scrollIntoView({ behavior:'smooth' });
+}
+
+function scrollToTopForm() {
+  document.querySelectorAll('.section-card')[1]
+    .scrollIntoView({ behavior:'smooth' });
+}
+
+/* ===== 全削除 ===== */
+function resetAllData() {
+  const ok = confirm('全データを削除しますか？');
+  if (!ok) return;
+
+  members = [];
+  items = [];
+
+  localStorage.removeItem('wk_members');
+  localStorage.removeItem('wk_items');
+
+  renderMembers();
+  renderPayerSelect();
+  renderTargetChips();
+  renderHistory();
+  renderSettlement();
+}
+
+/* ===== コピー ===== */
+async function copySettlement() {
+
+  const balance = calcSettlement();
+  const transfers = minimizeTransfers(balance);
+
+  if (transfers.length === 0) {
+    alert('コピーする精算結果がありません');
+    return;
+  }
+
+  let txt = '【わりかん精算】\n\n';
+
+  transfers.forEach(t => {
+    txt += `${t.from} → ${t.to} ${t.amt.toLocaleString()}円\n`;
+  });
+
+  try {
+    await navigator.clipboard.writeText(txt);
+    alert('コピーしました');
+  } catch(e) {
+    alert('コピー失敗');
+  }
+}
+
+/* ===== 履歴並び替え ===== */
+const historyHeader = document.querySelector('#historyList').parentElement;
+
+const sortWrap = document.createElement('div');
+sortWrap.style.marginTop = '10px';
+sortWrap.innerHTML = `
+<div style="display:flex;gap:8px;">
+<button id="sortNewBtn" class="quick-btn">新しい順</button>
+<button id="sortOldBtn" class="quick-btn">古い順</button>
+</div>
+`;
+
+historyHeader.insertBefore(sortWrap, document.getElementById('historyList'));
+
+document.getElementById('sortNewBtn').onclick = () => {
+  historySort = 'new';
+  renderHistory();
+};
+
+document.getElementById('sortOldBtn').onclick = () => {
+  historySort = 'old';
+  renderHistory();
+};
+
+/* ===== renderHistory 上書き ===== */
+const oldRenderHistory = renderHistory;
+
+renderHistory = function() {
+
+  const wrap = document.getElementById('historyList');
+  const chip = document.getElementById('totalChip');
+  const totalEl = document.getElementById('totalAmt');
+
+  if (items.length === 0) {
+    wrap.innerHTML = `
+    <div class="empty-state">
+      <div class="big">📝</div>
+      まだ項目がありません
+    </div>
+    `;
+    chip.style.display = 'none';
+    return;
+  }
+
+  let sorted = [...items];
+
+  if (historySort === 'new') {
+    sorted.sort((a,b) => b.id - a.id);
+  } else {
+    sorted.sort((a,b) => a.id - b.id);
+  }
+
+  const total = items.reduce((s,i)=>s+i.amount,0);
+
+  chip.style.display = 'inline-flex';
+  totalEl.textContent = total.toLocaleString();
+
+  wrap.innerHTML = sorted.map(it => `
+    <div class="history-item">
+
+      <div class="history-dot">🛒</div>
+
+      <div class="history-content">
+        <div class="history-name">${escHtml(it.name)}</div>
+
+        <div class="history-sub">
+          支払: ${escHtml(it.payer)}
+          ／ 対象: ${it.targets.map(escHtml).join(', ')}
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+
+        <div class="history-amount">
+          ${it.amount.toLocaleString()}円
+        </div>
+
+        <div style="display:flex;gap:4px;">
+
+          <button
+            onclick="openEditModal(${it.id})"
+            style="
+            border:none;
+            background:#EEF2FF;
+            border-radius:10px;
+            padding:6px 10px;
+            font-size:12px;
+            font-weight:700;
+            ">
+            編集
+          </button>
+
+          <button
+            class="del-history"
+            onclick="deleteItem(${it.id})">
+            🗑
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+  `).join('');
+};
+
+/* ===== 編集 ===== */
+function openEditModal(id) {
+
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+
+  currentEditId = id;
+
+  document.getElementById('editModal').style.display = 'flex';
+
+  document.getElementById('editName').value = item.name;
+  document.getElementById('editAmount').value = item.amount;
+
+  const payerSel = document.getElementById('editPayer');
+
+  payerSel.innerHTML = members.map(m => `
+    <option value="${m}" ${m===item.payer?'selected':''}>
+      ${m}
+    </option>
+  `).join('');
+
+  const targetWrap = document.getElementById('editTargets');
+
+  targetWrap.innerHTML = members.map(m => `
+    <label class="target-chip ${item.targets.includes(m)?'checked':''}">
+      <input
+        type="checkbox"
+        value="${m}"
+        ${item.targets.includes(m)?'checked':''}
+      >
+      ${item.targets.includes(m)?'✓':''} ${m}
+    </label>
+  `).join('');
+
+  targetWrap.querySelectorAll('input').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const label = this.closest('.target-chip');
+
+      if (this.checked) {
+        label.classList.add('checked');
+        label.innerHTML = `
+          <input type="checkbox" value="${this.value}" checked>
+          ✓ ${this.value}
+        `;
+      } else {
+        label.classList.remove('checked');
+        label.innerHTML = `
+          <input type="checkbox" value="${this.value}">
+          ${this.value}
+        `;
+      }
+
+      label.querySelector('input').addEventListener('change', arguments.callee);
+    });
+  });
+
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+  currentEditId = null;
+}
+
+function saveEditItem() {
+
+  const item = items.find(i => i.id === currentEditId);
+  if (!item) return;
+
+  const name = document.getElementById('editName').value.trim();
+  const amount = parseInt(document.getElementById('editAmount').value,10);
+  const payer = document.getElementById('editPayer').value;
+
+  const targets = [
+    ...document.querySelectorAll('#editTargets input:checked')
+  ].map(c => c.value);
+
+  if (!amount || amount <= 0) {
+    alert('金額エラー');
+    return;
+  }
+
+  if (targets.length === 0) {
+    alert('対象者を選択してください');
+    return;
+  }
+
+  item.name = name || '無題';
+  item.amount = amount;
+  item.payer = payer;
+  item.targets = targets;
+
+  save();
+
+  renderHistory();
+  renderSettlement();
+
+  closeEditModal();
+}
+
+/* ===== メンバー削除改善 ===== */
+const oldDeleteMember = deleteMember;
+
+deleteMember = function(name) {
+
+  const related = items.filter(it =>
+    it.payer === name ||
+    it.targets.includes(name)
+  );
+
+  if (related.length > 0) {
+
+    const ok = confirm(
+      `${name}を削除すると関連履歴も削除されます`
+    );
+
+    if (!ok) return;
+
+    items = items.filter(it =>
+      it.payer !== name &&
+      !it.targets.includes(name)
+    );
+  }
+
+  members = members.filter(m => m !== name);
+
+  save();
+
+  renderMembers();
+  renderPayerSelect();
+  renderTargetChips();
+  renderHistory();
+  renderSettlement();
+};
+
+renderHistory();
+renderSettlement();
+
+</script>
