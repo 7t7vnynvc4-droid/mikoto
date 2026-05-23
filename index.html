@@ -739,8 +739,9 @@ function closeConfirm() {
   confirmCallback = null;
 }
 function doConfirm() {
+  const cb = confirmCallback;
   closeConfirm();
-  if (confirmCallback) confirmCallback();
+  if (cb) cb();
 }
 
 /* =============================================
